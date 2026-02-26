@@ -6,6 +6,38 @@
 <title>Parcil Safety · 2026 Scorecard</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=DM+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
+/* ── PASSWORD GATE ── */
+#pw-gate {
+  position:fixed; inset:0; background:var(--navy); z-index:10000;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:20px;
+}
+#pw-gate.hidden { display:none; }
+.pw-logo { font-family:'Inter',sans-serif; font-size:1.6rem; font-weight:900; color:#fff; letter-spacing:-0.03em; margin-bottom:8px; }
+.pw-logo span { color:#A70C00; }
+.pw-box { background:#fff; border-radius:12px; padding:36px 40px; display:flex; flex-direction:column; gap:14px; width:320px; box-shadow:0 8px 40px rgba(0,0,0,0.4); }
+.pw-title { font-family:'Inter',sans-serif; font-size:1rem; font-weight:700; color:#3d4550; text-align:center; }
+.pw-sub { font-family:'Inter',sans-serif; font-size:0.78rem; color:#8d95a0; text-align:center; margin-top:-6px; }
+.pw-input { font-family:'Inter',sans-serif; font-size:0.95rem; padding:10px 14px; border:1.5px solid #dde1e6; border-radius:8px; outline:none; color:#3d4550; }
+.pw-input:focus { border-color:#A70C00; }
+.pw-btn { font-family:'Inter',sans-serif; font-size:0.9rem; font-weight:700; background:#A70C00; color:#fff; border:none; border-radius:8px; padding:11px; cursor:pointer; letter-spacing:0.02em; }
+.pw-btn:hover { background:#8a0900; }
+.pw-error { font-family:'Inter',sans-serif; font-size:0.78rem; color:#A70C00; text-align:center; min-height:16px; }
+
+/* ── LOADING OVERLAY ── */
+#loading-overlay {
+  position:fixed; inset:0; background:var(--navy); z-index:9999;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px;
+}
+#loading-overlay.hidden { display:none; }
+.loading-logo { font-family:'Inter',sans-serif; font-size:1.4rem; font-weight:900; color:#fff; letter-spacing:-0.03em; }
+.loading-logo span { color:#A70C00; }
+.loading-bar-wrap { width:220px; height:4px; background:rgba(255,255,255,0.15); border-radius:4px; overflow:hidden; }
+.loading-bar { height:100%; width:0%; background:#A70C00; border-radius:4px; transition:width 0.3s ease; }
+.loading-msg { font-family:'DM Mono',monospace; font-size:0.65rem; color:rgba(255,255,255,0.45); }
+.sync-dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:#A70C00;
+  margin-left:6px; vertical-align:middle; opacity:0; transition:opacity 0.3s; }
+.sync-dot.on { opacity:1; }
+
 :root {
   /* Parcil Safety brand palette */
   --bg:       #f4f5f6;
@@ -312,6 +344,32 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--ink); m
 </head>
 <body>
 
+<!-- PASSWORD GATE -->
+<div id="pw-gate" style="position:fixed;inset:0;background:#3d4550;z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;">
+  <div style="font-family:'Inter',sans-serif;font-size:1.6rem;font-weight:900;color:#fff;letter-spacing:-0.03em;">Parcil <span style="color:#A70C00;">Safety</span></div>
+  <div style="background:#fff;border-radius:12px;padding:36px 40px;display:flex;flex-direction:column;gap:14px;width:320px;box-shadow:0 8px 40px rgba(0,0,0,0.4);">
+    <div style="font-family:'Inter',sans-serif;font-size:1rem;font-weight:700;color:#3d4550;text-align:center;">Scorecard Access</div>
+    <div style="font-family:'Inter',sans-serif;font-size:0.78rem;color:#8d95a0;text-align:center;">Enter your password to continue</div>
+    <input id="pw-input" type="password" placeholder="Password"
+      style="font-family:'Inter',sans-serif;font-size:0.95rem;padding:10px 14px;border:1.5px solid #dde1e6;border-radius:8px;outline:none;color:#3d4550;"
+      onkeydown="if(event.key==='Enter')checkPw()">
+    <button onclick="checkPw()"
+      style="font-family:'Inter',sans-serif;font-size:0.9rem;font-weight:700;background:#A70C00;color:#fff;border:none;border-radius:8px;padding:11px;cursor:pointer;">
+      Enter
+    </button>
+    <div id="pw-error" style="font-family:'Inter',sans-serif;font-size:0.78rem;color:#A70C00;text-align:center;min-height:16px;"></div>
+  </div>
+</div>
+
+<!-- LOADING OVERLAY -->
+<div id="loading-overlay" class="hidden" style="position:fixed;inset:0;background:#3d4550;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
+  <div style="font-family:'Inter',sans-serif;font-size:1.4rem;font-weight:900;color:#fff;letter-spacing:-0.03em;">Parcil <span style="color:#A70C00;">Safety</span></div>
+  <div style="width:220px;height:4px;background:rgba(255,255,255,0.15);border-radius:4px;overflow:hidden;">
+    <div id="loading-bar" style="height:100%;width:0%;background:#A70C00;border-radius:4px;transition:width 0.3s ease;"></div>
+  </div>
+  <div id="loading-msg" style="font-family:'DM Mono',monospace;font-size:0.65rem;color:rgba(255,255,255,0.45);">Loading...</div>
+</div>
+
 <!-- HEADER -->
 <div class="hdr">
   <div class="hdr-title">Parcil Safety <span>Scorecard</span></div>
@@ -589,56 +647,126 @@ function parseRaw(val){
 function CV(t,a){ const tn=parseRaw(t),an=parseRaw(a); if(isNaN(tn)||isNaN(an)) return null; return an-tn; }
 function disp(raw,fmt){ if(raw===''||raw===null||raw===undefined) return ''; const n=parseRaw(raw); return isNaN(n)?raw:F(n,fmt); }
 
-// ── STORAGE ──────────────────────────────────────
+// ── PASSWORD GATE ────────────────────────────────
+const PW_HASH = '7f2abe3c1d4e5f6a8b9c0d1e2f3a4b5c'; // placeholder, replaced below
+const CORRECT_PW = 'Parcil1';
+
+function checkPw(){
+  const val = document.getElementById('pw-input').value;
+  const err = document.getElementById('pw-error');
+  if(val === CORRECT_PW){
+    document.getElementById('pw-gate').classList.add('hidden');
+    sessionStorage.setItem('sc_auth','1');
+    init();
+  } else {
+    err.textContent = 'Incorrect password — try again.';
+    document.getElementById('pw-input').value = '';
+    document.getElementById('pw-input').focus();
+  }
+}
+
+// ── SUPABASE CONFIG ──────────────────────────────
+const SB_URL = 'https://rqrpdcgicsghshbzclby.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxcnBkY2dpY3NnaHNoYnpjbGJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMzQ4ODcsImV4cCI6MjA4NzcxMDg4N30.a9CJGqd_HoShn0ODMGYtMBuG74_AbMm7718C8MbToqU';
+
+// In-memory cache — all reads come from here after initial load
+const cache = {};  // key -> value
+
+// ── SUPABASE HELPERS ─────────────────────────────
+async function sbGet(key){
+  const r = await fetch(`${SB_URL}/rest/v1/scorecard_data?key=eq.${encodeURIComponent(key)}&select=value`, {
+    headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
+  });
+  if(!r.ok) return null;
+  const d = await r.json();
+  return d.length ? d[0].value : null;
+}
+
+async function sbSet(key, value){
+  // Show sync dot
+  const dot = document.getElementById('sync-dot');
+  if(dot) dot.classList.add('on');
+  const r = await fetch(`${SB_URL}/rest/v1/scorecard_data`, {
+    method: 'POST',
+    headers: {
+      'apikey': SB_KEY,
+      'Authorization': 'Bearer ' + SB_KEY,
+      'Content-Type': 'application/json',
+      'Prefer': 'resolution=merge-duplicates'
+    },
+    body: JSON.stringify({ key, value })
+  });
+  if(dot) setTimeout(()=>dot.classList.remove('on'), 800);
+  return r.ok;
+}
+
+async function sbDel(key){
+  await fetch(`${SB_URL}/rest/v1/scorecard_data?key=eq.${encodeURIComponent(key)}`, {
+    method: 'DELETE',
+    headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
+  });
+}
+
+async function sbLoadAll(){
+  const r = await fetch(`${SB_URL}/rest/v1/scorecard_data?select=key,value&limit=1000`, {
+    headers: { 
+      'apikey': SB_KEY, 
+      'Authorization': 'Bearer ' + SB_KEY,
+      'Content-Type': 'application/json'
+    }
+  });
+  if(!r.ok){ console.warn('sbLoadAll HTTP error:', r.status); return {}; }
+  const rows = await r.json();
+  const out = {};
+  rows.forEach(row => out[row.key] = row.value);
+  return out;
+}
+
+// ── STORAGE LAYER (cache-backed, async writes) ──
 function sk(id,f){ return 'sc26_'+id+'_'+f; }
-function ld(id,f,d){ const v=localStorage.getItem(sk(id,f)); return v!==null?v:(d!=null?''+d:''); }
-function sv(id,f,v){ localStorage.setItem(sk(id,f),v); }
-// savePct: save a user-typed value, converting % notation to decimal if needed
+function ld(id,f,d){ const k=sk(id,f); const v=cache[k]; return v!=null?v:(d!=null?''+d:''); }
+function sv(id,f,v){ const k=sk(id,f); cache[k]=String(v); sbSet(k, String(v)); }
+
 function saveVal(id,f,rawInput,fmt){
   let v = rawInput;
   if(fmt==='pct4'){
     const s = String(rawInput).trim();
-    if(s.endsWith('%')){
-      // explicit % — convert to decimal
-      const n = parseFloat(s);
-      if(!isNaN(n)) v = String(n/100);
-    } else {
-      // no % sign — if number > 1 assume they mean a percentage like 2.54 = 2.54%
-      const n = parseFloat(s);
-      if(!isNaN(n)){
-        v = n > 1 ? String(n/100) : String(n);
-      }
-    }
+    if(s.endsWith('%')){ const n = parseFloat(s); if(!isNaN(n)) v = String(n/100); }
+    else { const n = parseFloat(s); if(!isNaN(n)) v = n > 1 ? String(n/100) : String(n); }
   } else if(fmt==='dollar2'){
-    const n = parseRaw(rawInput);
-    if(!isNaN(n)) v = String(n);
+    const n = parseRaw(rawInput); if(!isNaN(n)) v = String(n);
   }
   sv(id,f,v);
 }
 
 function saveState(){
-  localStorage.setItem('sc26_weeks', JSON.stringify(state.weeks));
-  localStorage.setItem('sc26_weekIdx', state.weekIdx);
+  const wKey = 'sc26_weeks';
+  const wiKey = 'sc26_weekIdx';
+  const wVal = JSON.stringify(state.weeks);
+  const wiVal = String(state.weekIdx);
+  cache[wKey] = wVal; sbSet(wKey, wVal);
+  cache[wiKey] = wiVal; sbSet(wiKey, wiVal);
 }
+
 function loadState(){
-  const w=localStorage.getItem('sc26_weeks');
-  if(w){ try{ state.weeks=JSON.parse(w); }catch(e){} }
-  const wi=localStorage.getItem('sc26_weekIdx');
-  state.weekIdx = wi!==null ? parseInt(wi) : (state.weeks.length>0?0:null);
+  const w = cache['sc26_weeks'];
+  if(w){ try{ state.weeks = JSON.parse(w); }catch(e){} }
+  const wi = cache['sc26_weekIdx'];
+  state.weekIdx = wi!=null && wi!=='null' ? parseInt(wi) : (state.weeks.length>0?0:null);
 }
 
 function seedDefaults(measures){
   measures.forEach(m=>{
     MONTHS.forEach((_,i)=>{
-      if(m.mT&&m.mT[i]!=null&&localStorage.getItem(sk(m.id,`m${i}t`))===null) sv(m.id,`m${i}t`,m.mT[i]);
-      if(m.mA&&m.mA[i]!=null&&localStorage.getItem(sk(m.id,`m${i}a`))===null) sv(m.id,`m${i}a`,m.mA[i]);
+      if(m.mT&&m.mT[i]!=null&&cache[sk(m.id,`m${i}t`)]==null){ cache[sk(m.id,`m${i}t`)]=String(m.mT[i]); sbSet(sk(m.id,`m${i}t`),String(m.mT[i])); }
+      if(m.mA&&m.mA[i]!=null&&cache[sk(m.id,`m${i}a`)]==null){ cache[sk(m.id,`m${i}a`)]=String(m.mA[i]); sbSet(sk(m.id,`m${i}a`),String(m.mA[i])); }
     });
     QUARTERS.forEach((_,i)=>{
-      if(m.qT&&m.qT[i]!=null&&localStorage.getItem(sk(m.id,`q${i}t`))===null) sv(m.id,`q${i}t`,m.qT[i]);
-      if(m.qA&&m.qA[i]!=null&&localStorage.getItem(sk(m.id,`q${i}a`))===null) sv(m.id,`q${i}a`,m.qA[i]);
+      if(m.qT&&m.qT[i]!=null&&cache[sk(m.id,`q${i}t`)]==null){ cache[sk(m.id,`q${i}t`)]=String(m.qT[i]); sbSet(sk(m.id,`q${i}t`),String(m.qT[i])); }
+      if(m.qA&&m.qA[i]!=null&&cache[sk(m.id,`q${i}a`)]==null){ cache[sk(m.id,`q${i}a`)]=String(m.qA[i]); sbSet(sk(m.id,`q${i}a`),String(m.qA[i])); }
     });
-    if(m.yT!=null&&!localStorage.getItem(sk(m.id,'yyt'))) sv(m.id,'yyt',m.yT);
-    if(m.yA!=null&&!localStorage.getItem(sk(m.id,'yya'))) sv(m.id,'yya',m.yA);
+    if(m.yT!=null&&cache[sk(m.id,'yyt')]==null){ cache[sk(m.id,'yyt')]=String(m.yT); sbSet(sk(m.id,'yyt'),String(m.yT)); }
+    if(m.yA!=null&&cache[sk(m.id,'yya')]==null){ cache[sk(m.id,'yya')]=String(m.yA); sbSet(sk(m.id,'yya'),String(m.yA)); }
   });
 }
 
@@ -663,18 +791,15 @@ function selectWeek(i){
 }
 
 function deleteWeek(i){
-  // clear storage for this week index (shift everything down after delete)
-  // simplest: remove data for deleted index
   LEAD_MEASURE_IDS.forEach(id=>{
-    ['t','a','n'].forEach(f=>localStorage.removeItem(sk(id,`w${i}${f}`)));
+    ['t','a','n'].forEach(f=>{ const k=sk(id,`w${i}${f}`); delete cache[k]; sbDel(k); });
   });
-  // shift weeks above down by one
   for(let j=i;j<state.weeks.length-1;j++){
     LEAD_MEASURE_IDS.forEach(id=>{
       ['t','a','n'].forEach(f=>{
-        const v=localStorage.getItem(sk(id,`w${j+1}${f}`));
-        if(v!==null) sv(id,`w${j}${f}`,v);
-        else localStorage.removeItem(sk(id,`w${j}${f}`));
+        const fromK=sk(id,`w${j+1}${f}`); const toK=sk(id,`w${j}${f}`);
+        if(cache[fromK]!=null){ cache[toK]=cache[fromK]; sbSet(toK,cache[fromK]); }
+        else { delete cache[toK]; sbDel(toK); }
       });
     });
   }
@@ -933,18 +1058,16 @@ function doSave(){
 }
 
 function resetSection(s){
-
   if(s==='lead'){
     LEAD_MEASURE_IDS.forEach(id=>{
-      Object.keys(localStorage).filter(k=>k.includes(id)).forEach(k=>localStorage.removeItem(k));
+      Object.keys(cache).filter(k=>k.includes(id)).forEach(k=>{ sbDel(k); delete cache[k]; });
     });
-    localStorage.removeItem('sc26_weeks');
-    localStorage.removeItem('sc26_weekIdx');
+    ['sc26_weeks','sc26_weekIdx'].forEach(k=>{ sbDel(k); delete cache[k]; });
     state.weeks=[]; state.weekIdx=null;
     buildWeekList(); buildWeekCards();
   } else {
     const ids=s==='lag'?LAG.map(m=>m.id):KPI.map(m=>m.id);
-    ids.forEach(id=>Object.keys(localStorage).filter(k=>k.includes(id)).forEach(k=>localStorage.removeItem(k)));
+    ids.forEach(id=>Object.keys(cache).filter(k=>k.includes(id)).forEach(k=>{ sbDel(k); delete cache[k]; }));
     seedDefaults(s==='lag'?LAG:KPI);
     buildPeriodView(s);
   }
@@ -985,20 +1108,83 @@ function exportCSV(){
 }
 
 // ── INIT ──────────────────────────────────────────
-function init(){
+async function init(){
+  const overlay = document.getElementById('loading-overlay');
+  const bar     = document.getElementById('loading-bar');
+  const msg     = document.getElementById('loading-msg');
+  if(overlay) overlay.style.display = 'flex';
+
+  setProgress(bar, 20); msg.textContent = 'Loading scorecard data...';
+
+  // Step 1 — load whatever is already in Supabase into cache
+  // Always continue even if Supabase fails — render with defaults
+  try {
+    const allData = await Promise.race([
+      sbLoadAll(),
+      new Promise((_,reject) => setTimeout(()=>reject(new Error('timeout')), 8000))
+    ]);
+    Object.assign(cache, allData);
+    setProgress(bar, 60); msg.textContent = 'Building dashboard...';
+  } catch(e) {
+    console.warn('Supabase load failed, using defaults:', e.message);
+    setProgress(bar, 60); msg.textContent = 'Building dashboard...';
+  }
+
+  // Step 2 — seed defaults into cache synchronously (no Supabase write yet)
+  // This ensures first-time users see data immediately even before DB write completes
+  function seedCacheOnly(measures){
+    measures.forEach(m=>{
+      MONTHS.forEach((_,i)=>{
+        if(m.mT&&m.mT[i]!=null&&cache[sk(m.id,`m${i}t`)]==null) cache[sk(m.id,`m${i}t`)]=String(m.mT[i]);
+        if(m.mA&&m.mA[i]!=null&&cache[sk(m.id,`m${i}a`)]==null) cache[sk(m.id,`m${i}a`)]=String(m.mA[i]);
+      });
+      QUARTERS.forEach((_,i)=>{
+        if(m.qT&&m.qT[i]!=null&&cache[sk(m.id,`q${i}t`)]==null) cache[sk(m.id,`q${i}t`)]=String(m.qT[i]);
+        if(m.qA&&m.qA[i]!=null&&cache[sk(m.id,`q${i}a`)]==null) cache[sk(m.id,`q${i}a`)]=String(m.qA[i]);
+      });
+      if(m.yT!=null&&cache[sk(m.id,'yyt')]==null) cache[sk(m.id,'yyt')]=String(m.yT);
+      if(m.yA!=null&&cache[sk(m.id,'yya')]==null) cache[sk(m.id,'yya')]=String(m.yA);
+    });
+  }
+
   loadState();
-  seedDefaults(LAG);
-  seedDefaults(KPI);
-  // seed defaults for display
-  if(!state.lag.selected.length) state.lag.selected=['m0'];
-  if(!state.kpi.selected.length) state.kpi.selected=['m0'];
+  seedCacheOnly(LAG);
+  seedCacheOnly(KPI);
+
+  // Step 3 — render everything immediately from cache
+  // Always ensure selected arrays exist and have a default
+  if(!state.lag || !state.lag.selected || !state.lag.selected.length) state.lag = { selected: ['m0'] };
+  if(!state.kpi || !state.kpi.selected || !state.kpi.selected.length) state.kpi = { selected: ['m0'] };
   buildWeekList();
   buildWeekCards();
   buildPills('lag'); buildCompareStrip('lag'); buildPeriodView('lag');
   buildPills('kpi'); buildCompareStrip('kpi'); buildPeriodView('kpi');
   document.getElementById('week-date-input').addEventListener('keydown',e=>{ if(e.key==='Enter') addWeek(); });
+
+  // Step 4 — dismiss overlay
+  setProgress(bar, 100);
+  setTimeout(()=>overlay.classList.add('hidden'), 350);
+
+  // Step 5 — push any missing defaults to Supabase in background (fire and forget)
+  seedDefaults(LAG);
+  seedDefaults(KPI);
 }
-window.addEventListener('DOMContentLoaded',init);
+
+function setProgress(bar, pct){ if(bar) bar.style.width = pct+'%'; }
+
+window.addEventListener('DOMContentLoaded',()=>{
+  // If already authenticated this session, skip password gate
+  if(sessionStorage.getItem('sc_auth')==='1'){
+    document.getElementById('pw-gate').classList.add('hidden');
+    init();
+  } else {
+    // Show password gate, focus input
+    setTimeout(()=>{
+      const inp = document.getElementById('pw-input');
+      if(inp) inp.focus();
+    }, 100);
+  }
+});
 </script>
 </body>
 </html>
