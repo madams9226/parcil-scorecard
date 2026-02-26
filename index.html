@@ -655,7 +655,7 @@ function checkPw(){
   const val = document.getElementById('pw-input').value;
   const err = document.getElementById('pw-error');
   if(val === CORRECT_PW){
-    document.getElementById('pw-gate').classList.add('hidden');
+    document.getElementById('pw-gate').style.display = 'none';
     sessionStorage.setItem('sc_auth','1');
     init();
   } else {
@@ -1175,7 +1175,7 @@ function setProgress(bar, pct){ if(bar) bar.style.width = pct+'%'; }
 window.addEventListener('DOMContentLoaded',()=>{
   // If already authenticated this session, skip password gate
   if(sessionStorage.getItem('sc_auth')==='1'){
-    document.getElementById('pw-gate').classList.add('hidden');
+    document.getElementById('pw-gate').style.display = 'none';
     init();
   } else {
     // Show password gate, focus input
