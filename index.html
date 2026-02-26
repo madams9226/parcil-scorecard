@@ -654,9 +654,14 @@ const CORRECT_PW = 'Parcil1';
 function checkPw(){
   const val = document.getElementById('pw-input').value;
   const err = document.getElementById('pw-error');
+  console.log('checkPw called, val:', val, 'correct:', CORRECT_PW, 'match:', val===CORRECT_PW);
   if(val === CORRECT_PW){
-    document.getElementById('pw-gate').style.display = 'none';
+    const gate = document.getElementById('pw-gate');
+    console.log('gate element:', gate);
+    gate.style.display = 'none';
+    gate.style.visibility = 'hidden';
     sessionStorage.setItem('sc_auth','1');
+    console.log('calling init...');
     init();
   } else {
     err.textContent = 'Incorrect password — try again.';
