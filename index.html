@@ -1048,22 +1048,41 @@ async function init(){
   const bar     = document.getElementById('loading-bar');
   const msg     = document.getElementById('loading-msg');
 
-  // Step 1 — connect
   setProgress(bar, 20); msg.textContent = 'Loading scorecard data...';
+
+  // Step 1 — load whatever is already in Supabase into cache
   try {
     const allData = await sbLoadAll();
     Object.assign(cache, allData);
-    setProgress(bar, 70); msg.textContent = 'Building dashboard...';
+    setProgress(bar, 60); msg.textContent = 'Building dashboard...';
   } catch(e) {
     msg.textContent = 'Could not reach database — check connection.';
     console.error(e);
     return;
   }
 
-  // Step 2 — seed & render
+  // Step 2 — seed defaults into cache synchronously (no Supabase write yet)
+  // This ensures first-time users see data immediately even before DB write completes
+  function seedCacheOnly(measures){
+    measures.forEach(m=>{
+      MONTHS.forEach((_,i)=>{
+        if(m.mT&&m.mT[i]!=null&&cache[sk(m.id,`m${i}t`)]==null) cache[sk(m.id,`m${i}t`)]=String(m.mT[i]);
+        if(m.mA&&m.mA[i]!=null&&cache[sk(m.id,`m${i}a`)]==null) cache[sk(m.id,`m${i}a`)]=String(m.mA[i]);
+      });
+      QUARTERS.forEach((_,i)=>{
+        if(m.qT&&m.qT[i]!=null&&cache[sk(m.id,`q${i}t`)]==null) cache[sk(m.id,`q${i}t`)]=String(m.qT[i]);
+        if(m.qA&&m.qA[i]!=null&&cache[sk(m.id,`q${i}a`)]==null) cache[sk(m.id,`q${i}a`)]=String(m.qA[i]);
+      });
+      if(m.yT!=null&&cache[sk(m.id,'yyt')]==null) cache[sk(m.id,'yyt')]=String(m.yT);
+      if(m.yA!=null&&cache[sk(m.id,'yya')]==null) cache[sk(m.id,'yya')]=String(m.yA);
+    });
+  }
+
   loadState();
-  seedDefaults(LAG);
-  seedDefaults(KPI);
+  seedCacheOnly(LAG);
+  seedCacheOnly(KPI);
+
+  // Step 3 — render everything immediately from cache
   if(!state.lag.selected.length) state.lag.selected=['m0'];
   if(!state.kpi.selected.length) state.kpi.selected=['m0'];
   buildWeekList();
@@ -1072,9 +1091,13 @@ async function init(){
   buildPills('kpi'); buildCompareStrip('kpi'); buildPeriodView('kpi');
   document.getElementById('week-date-input').addEventListener('keydown',e=>{ if(e.key==='Enter') addWeek(); });
 
-  // Step 3 — dismiss overlay
+  // Step 4 — dismiss overlay
   setProgress(bar, 100);
   setTimeout(()=>overlay.classList.add('hidden'), 350);
+
+  // Step 5 — push any missing defaults to Supabase in background (fire and forget)
+  seedDefaults(LAG);
+  seedDefaults(KPI);
 }
 
 function setProgress(bar, pct){ if(bar) bar.style.width = pct+'%'; }
