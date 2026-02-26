@@ -6,21 +6,6 @@
 <title>Parcil Safety · 2026 Scorecard</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=DM+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-/* ── LOADING OVERLAY ── */
-#loading-overlay {
-  position:fixed; inset:0; background:var(--navy); z-index:9999;
-  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px;
-}
-#loading-overlay.hidden { display:none; }
-.loading-logo { font-family:'Inter',sans-serif; font-size:1.4rem; font-weight:900; color:#fff; letter-spacing:-0.03em; }
-.loading-logo span { color:#A70C00; }
-.loading-bar-wrap { width:220px; height:4px; background:rgba(255,255,255,0.15); border-radius:4px; overflow:hidden; }
-.loading-bar { height:100%; width:0%; background:#A70C00; border-radius:4px; transition:width 0.3s ease; }
-.loading-msg { font-family:'DM Mono',monospace; font-size:0.65rem; color:rgba(255,255,255,0.45); }
-.sync-dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:#A70C00;
-  margin-left:6px; vertical-align:middle; opacity:0; transition:opacity 0.3s; }
-.sync-dot.on { opacity:1; }
-
 :root {
   /* Parcil Safety brand palette */
   --bg:       #f4f5f6;
@@ -604,104 +589,56 @@ function parseRaw(val){
 function CV(t,a){ const tn=parseRaw(t),an=parseRaw(a); if(isNaN(tn)||isNaN(an)) return null; return an-tn; }
 function disp(raw,fmt){ if(raw===''||raw===null||raw===undefined) return ''; const n=parseRaw(raw); return isNaN(n)?raw:F(n,fmt); }
 
-// ── SUPABASE CONFIG ──────────────────────────────
-const SB_URL = 'https://rqrpdcgicsghshbzclby.supabase.co';
-const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxcnBkY2dpY3NnaHNoYnpjbGJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMzQ4ODcsImV4cCI6MjA4NzcxMDg4N30.a9CJGqd_HoShn0ODMGYtMBuG74_AbMm7718C8MbToqU';
-
-// In-memory cache — all reads come from here after initial load
-const cache = {};  // key -> value
-
-// ── SUPABASE HELPERS ─────────────────────────────
-async function sbGet(key){
-  const r = await fetch(`${SB_URL}/rest/v1/scorecard_data?key=eq.${encodeURIComponent(key)}&select=value`, {
-    headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
-  });
-  if(!r.ok) return null;
-  const d = await r.json();
-  return d.length ? d[0].value : null;
-}
-
-async function sbSet(key, value){
-  // Show sync dot
-  const dot = document.getElementById('sync-dot');
-  if(dot) dot.classList.add('on');
-  const r = await fetch(`${SB_URL}/rest/v1/scorecard_data`, {
-    method: 'POST',
-    headers: {
-      'apikey': SB_KEY,
-      'Authorization': 'Bearer ' + SB_KEY,
-      'Content-Type': 'application/json',
-      'Prefer': 'resolution=merge-duplicates'
-    },
-    body: JSON.stringify({ key, value })
-  });
-  if(dot) setTimeout(()=>dot.classList.remove('on'), 800);
-  return r.ok;
-}
-
-async function sbDel(key){
-  await fetch(`${SB_URL}/rest/v1/scorecard_data?key=eq.${encodeURIComponent(key)}`, {
-    method: 'DELETE',
-    headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
-  });
-}
-
-async function sbLoadAll(){
-  const r = await fetch(`${SB_URL}/rest/v1/scorecard_data?select=key,value`, {
-    headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
-  });
-  if(!r.ok) return {};
-  const rows = await r.json();
-  const out = {};
-  rows.forEach(row => out[row.key] = row.value);
-  return out;
-}
-
-// ── STORAGE LAYER (cache-backed, async writes) ──
+// ── STORAGE ──────────────────────────────────────
 function sk(id,f){ return 'sc26_'+id+'_'+f; }
-function ld(id,f,d){ const k=sk(id,f); const v=cache[k]; return v!=null?v:(d!=null?''+d:''); }
-function sv(id,f,v){ const k=sk(id,f); cache[k]=String(v); sbSet(k, String(v)); }
-
+function ld(id,f,d){ const v=localStorage.getItem(sk(id,f)); return v!==null?v:(d!=null?''+d:''); }
+function sv(id,f,v){ localStorage.setItem(sk(id,f),v); }
+// savePct: save a user-typed value, converting % notation to decimal if needed
 function saveVal(id,f,rawInput,fmt){
   let v = rawInput;
   if(fmt==='pct4'){
     const s = String(rawInput).trim();
-    if(s.endsWith('%')){ const n = parseFloat(s); if(!isNaN(n)) v = String(n/100); }
-    else { const n = parseFloat(s); if(!isNaN(n)) v = n > 1 ? String(n/100) : String(n); }
+    if(s.endsWith('%')){
+      // explicit % — convert to decimal
+      const n = parseFloat(s);
+      if(!isNaN(n)) v = String(n/100);
+    } else {
+      // no % sign — if number > 1 assume they mean a percentage like 2.54 = 2.54%
+      const n = parseFloat(s);
+      if(!isNaN(n)){
+        v = n > 1 ? String(n/100) : String(n);
+      }
+    }
   } else if(fmt==='dollar2'){
-    const n = parseRaw(rawInput); if(!isNaN(n)) v = String(n);
+    const n = parseRaw(rawInput);
+    if(!isNaN(n)) v = String(n);
   }
   sv(id,f,v);
 }
 
 function saveState(){
-  const wKey = 'sc26_weeks';
-  const wiKey = 'sc26_weekIdx';
-  const wVal = JSON.stringify(state.weeks);
-  const wiVal = String(state.weekIdx);
-  cache[wKey] = wVal; sbSet(wKey, wVal);
-  cache[wiKey] = wiVal; sbSet(wiKey, wiVal);
+  localStorage.setItem('sc26_weeks', JSON.stringify(state.weeks));
+  localStorage.setItem('sc26_weekIdx', state.weekIdx);
 }
-
 function loadState(){
-  const w = cache['sc26_weeks'];
-  if(w){ try{ state.weeks = JSON.parse(w); }catch(e){} }
-  const wi = cache['sc26_weekIdx'];
-  state.weekIdx = wi!=null && wi!=='null' ? parseInt(wi) : (state.weeks.length>0?0:null);
+  const w=localStorage.getItem('sc26_weeks');
+  if(w){ try{ state.weeks=JSON.parse(w); }catch(e){} }
+  const wi=localStorage.getItem('sc26_weekIdx');
+  state.weekIdx = wi!==null ? parseInt(wi) : (state.weeks.length>0?0:null);
 }
 
 function seedDefaults(measures){
   measures.forEach(m=>{
     MONTHS.forEach((_,i)=>{
-      if(m.mT&&m.mT[i]!=null&&cache[sk(m.id,`m${i}t`)]==null){ cache[sk(m.id,`m${i}t`)]=String(m.mT[i]); sbSet(sk(m.id,`m${i}t`),String(m.mT[i])); }
-      if(m.mA&&m.mA[i]!=null&&cache[sk(m.id,`m${i}a`)]==null){ cache[sk(m.id,`m${i}a`)]=String(m.mA[i]); sbSet(sk(m.id,`m${i}a`),String(m.mA[i])); }
+      if(m.mT&&m.mT[i]!=null&&localStorage.getItem(sk(m.id,`m${i}t`))===null) sv(m.id,`m${i}t`,m.mT[i]);
+      if(m.mA&&m.mA[i]!=null&&localStorage.getItem(sk(m.id,`m${i}a`))===null) sv(m.id,`m${i}a`,m.mA[i]);
     });
     QUARTERS.forEach((_,i)=>{
-      if(m.qT&&m.qT[i]!=null&&cache[sk(m.id,`q${i}t`)]==null){ cache[sk(m.id,`q${i}t`)]=String(m.qT[i]); sbSet(sk(m.id,`q${i}t`),String(m.qT[i])); }
-      if(m.qA&&m.qA[i]!=null&&cache[sk(m.id,`q${i}a`)]==null){ cache[sk(m.id,`q${i}a`)]=String(m.qA[i]); sbSet(sk(m.id,`q${i}a`),String(m.qA[i])); }
+      if(m.qT&&m.qT[i]!=null&&localStorage.getItem(sk(m.id,`q${i}t`))===null) sv(m.id,`q${i}t`,m.qT[i]);
+      if(m.qA&&m.qA[i]!=null&&localStorage.getItem(sk(m.id,`q${i}a`))===null) sv(m.id,`q${i}a`,m.qA[i]);
     });
-    if(m.yT!=null&&cache[sk(m.id,'yyt')]==null){ cache[sk(m.id,'yyt')]=String(m.yT); sbSet(sk(m.id,'yyt'),String(m.yT)); }
-    if(m.yA!=null&&cache[sk(m.id,'yya')]==null){ cache[sk(m.id,'yya')]=String(m.yA); sbSet(sk(m.id,'yya'),String(m.yA)); }
+    if(m.yT!=null&&!localStorage.getItem(sk(m.id,'yyt'))) sv(m.id,'yyt',m.yT);
+    if(m.yA!=null&&!localStorage.getItem(sk(m.id,'yya'))) sv(m.id,'yya',m.yA);
   });
 }
 
@@ -726,15 +663,18 @@ function selectWeek(i){
 }
 
 function deleteWeek(i){
+  // clear storage for this week index (shift everything down after delete)
+  // simplest: remove data for deleted index
   LEAD_MEASURE_IDS.forEach(id=>{
-    ['t','a','n'].forEach(f=>{ const k=sk(id,`w${i}${f}`); delete cache[k]; sbDel(k); });
+    ['t','a','n'].forEach(f=>localStorage.removeItem(sk(id,`w${i}${f}`)));
   });
+  // shift weeks above down by one
   for(let j=i;j<state.weeks.length-1;j++){
     LEAD_MEASURE_IDS.forEach(id=>{
       ['t','a','n'].forEach(f=>{
-        const fromK=sk(id,`w${j+1}${f}`); const toK=sk(id,`w${j}${f}`);
-        if(cache[fromK]!=null){ cache[toK]=cache[fromK]; sbSet(toK,cache[fromK]); }
-        else { delete cache[toK]; sbDel(toK); }
+        const v=localStorage.getItem(sk(id,`w${j+1}${f}`));
+        if(v!==null) sv(id,`w${j}${f}`,v);
+        else localStorage.removeItem(sk(id,`w${j}${f}`));
       });
     });
   }
@@ -993,16 +933,18 @@ function doSave(){
 }
 
 function resetSection(s){
+
   if(s==='lead'){
     LEAD_MEASURE_IDS.forEach(id=>{
-      Object.keys(cache).filter(k=>k.includes(id)).forEach(k=>{ sbDel(k); delete cache[k]; });
+      Object.keys(localStorage).filter(k=>k.includes(id)).forEach(k=>localStorage.removeItem(k));
     });
-    ['sc26_weeks','sc26_weekIdx'].forEach(k=>{ sbDel(k); delete cache[k]; });
+    localStorage.removeItem('sc26_weeks');
+    localStorage.removeItem('sc26_weekIdx');
     state.weeks=[]; state.weekIdx=null;
     buildWeekList(); buildWeekCards();
   } else {
     const ids=s==='lag'?LAG.map(m=>m.id):KPI.map(m=>m.id);
-    ids.forEach(id=>Object.keys(cache).filter(k=>k.includes(id)).forEach(k=>{ sbDel(k); delete cache[k]; }));
+    ids.forEach(id=>Object.keys(localStorage).filter(k=>k.includes(id)).forEach(k=>localStorage.removeItem(k)));
     seedDefaults(s==='lag'?LAG:KPI);
     buildPeriodView(s);
   }
@@ -1043,46 +985,11 @@ function exportCSV(){
 }
 
 // ── INIT ──────────────────────────────────────────
-async function init(){
-  const overlay = document.getElementById('loading-overlay');
-  const bar     = document.getElementById('loading-bar');
-  const msg     = document.getElementById('loading-msg');
-
-  setProgress(bar, 20); msg.textContent = 'Loading scorecard data...';
-
-  // Step 1 — load whatever is already in Supabase into cache
-  try {
-    const allData = await sbLoadAll();
-    Object.assign(cache, allData);
-    setProgress(bar, 60); msg.textContent = 'Building dashboard...';
-  } catch(e) {
-    msg.textContent = 'Could not reach database — check connection.';
-    console.error(e);
-    return;
-  }
-
-  // Step 2 — seed defaults into cache synchronously (no Supabase write yet)
-  // This ensures first-time users see data immediately even before DB write completes
-  function seedCacheOnly(measures){
-    measures.forEach(m=>{
-      MONTHS.forEach((_,i)=>{
-        if(m.mT&&m.mT[i]!=null&&cache[sk(m.id,`m${i}t`)]==null) cache[sk(m.id,`m${i}t`)]=String(m.mT[i]);
-        if(m.mA&&m.mA[i]!=null&&cache[sk(m.id,`m${i}a`)]==null) cache[sk(m.id,`m${i}a`)]=String(m.mA[i]);
-      });
-      QUARTERS.forEach((_,i)=>{
-        if(m.qT&&m.qT[i]!=null&&cache[sk(m.id,`q${i}t`)]==null) cache[sk(m.id,`q${i}t`)]=String(m.qT[i]);
-        if(m.qA&&m.qA[i]!=null&&cache[sk(m.id,`q${i}a`)]==null) cache[sk(m.id,`q${i}a`)]=String(m.qA[i]);
-      });
-      if(m.yT!=null&&cache[sk(m.id,'yyt')]==null) cache[sk(m.id,'yyt')]=String(m.yT);
-      if(m.yA!=null&&cache[sk(m.id,'yya')]==null) cache[sk(m.id,'yya')]=String(m.yA);
-    });
-  }
-
+function init(){
   loadState();
-  seedCacheOnly(LAG);
-  seedCacheOnly(KPI);
-
-  // Step 3 — render everything immediately from cache
+  seedDefaults(LAG);
+  seedDefaults(KPI);
+  // seed defaults for display
   if(!state.lag.selected.length) state.lag.selected=['m0'];
   if(!state.kpi.selected.length) state.kpi.selected=['m0'];
   buildWeekList();
@@ -1090,18 +997,7 @@ async function init(){
   buildPills('lag'); buildCompareStrip('lag'); buildPeriodView('lag');
   buildPills('kpi'); buildCompareStrip('kpi'); buildPeriodView('kpi');
   document.getElementById('week-date-input').addEventListener('keydown',e=>{ if(e.key==='Enter') addWeek(); });
-
-  // Step 4 — dismiss overlay
-  setProgress(bar, 100);
-  setTimeout(()=>overlay.classList.add('hidden'), 350);
-
-  // Step 5 — push any missing defaults to Supabase in background (fire and forget)
-  seedDefaults(LAG);
-  seedDefaults(KPI);
 }
-
-function setProgress(bar, pct){ if(bar) bar.style.width = pct+'%'; }
-
 window.addEventListener('DOMContentLoaded',init);
 </script>
 </body>
