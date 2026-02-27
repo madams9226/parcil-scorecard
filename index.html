@@ -362,7 +362,7 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--ink); m
 </div>
 
 <!-- LOADING OVERLAY -->
-<div id="loading-overlay" class="hidden" style="position:fixed;inset:0;background:#3d4550;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
+<div id="loading-overlay" style="position:fixed;inset:0;background:#3d4550;z-index:9999;display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
   <div style="font-family:'Inter',sans-serif;font-size:1.4rem;font-weight:900;color:#fff;letter-spacing:-0.03em;">Parcil <span style="color:#A70C00;">Safety</span></div>
   <div style="width:220px;height:4px;background:rgba(255,255,255,0.15);border-radius:4px;overflow:hidden;">
     <div id="loading-bar" style="height:100%;width:0%;background:#A70C00;border-radius:4px;transition:width 0.3s ease;"></div>
@@ -1114,6 +1114,7 @@ async function init(){
   const msg     = document.getElementById('loading-msg');
   if(overlay) overlay.style.display = 'flex';
 
+
   setProgress(bar, 20); msg.textContent = 'Loading scorecard data...';
 
   // Step 1 — load whatever is already in Supabase into cache
@@ -1163,7 +1164,7 @@ async function init(){
 
   // Step 4 — dismiss overlay
   setProgress(bar, 100);
-  setTimeout(()=>overlay.classList.add('hidden'), 350);
+  setTimeout(()=>{ if(overlay) overlay.style.display='none'; }, 350);
 
   // Step 5 — push any missing defaults to Supabase in background (fire and forget)
   seedDefaults(LAG);
